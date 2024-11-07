@@ -1,25 +1,19 @@
 import { AfterViewInit, Component, ElementRef, ViewChild } from '@angular/core';
-import { DataService } from './service/data.service';
-import { MatGridList, MatGridTile } from '@angular/material/grid-list';
-import { Message } from './types/message';
-import { environment } from '../../environments/environment';
 import { MatButton } from '@angular/material/button';
+import { MatGridList, MatGridTile } from '@angular/material/grid-list';
 
-
+import { environment } from '../../environments/environment';
+import { DataService } from './service/data.service';
+import { Message } from './types/message';
 
 const mediaConstraints = {
   audio: true,
-  video: true
-  // video: {width: 1280, height: 720}
-  // video: {width: 1280, height: 720} // 16:9
-  // video: {width: 960, height: 540}  // 16:9
-  // video: {width: 640, height: 480}  //  4:3
-  // video: {width: 160, height: 120}  //  4:3
+  video: true,
 };
 
 const offerOptions = {
   offerToReceiveAudio: true,
-  offerToReceiveVideo: true
+  offerToReceiveVideo: true,
 };
 
 @Component({
@@ -28,7 +22,7 @@ const offerOptions = {
   imports: [MatGridList, MatGridTile, MatButton],
   providers: [DataService],
   templateUrl: './chat.component.html',
-  styleUrl: './chat.component.css'
+  styleUrl: './chat.component.css',
 })
 export class ChatComponent implements AfterViewInit {
   @ViewChild('local_video') localVideo!: ElementRef;
@@ -41,16 +35,13 @@ export class ChatComponent implements AfterViewInit {
   inCall = false;
   localVideoActive = false;
 
-
-  constructor(private dataService: DataService) { }
+  constructor(private dataService: DataService) {}
 
   async call(): Promise<void> {
     this.createPeerConnection();
 
     // Add the tracks from the local stream to the RTCPeerConnection
-    this.localStream.getTracks().forEach(
-      track => this.peerConnection.addTrack(track, this.localStream)
-    );
+    this.localStream.getTracks().forEach((track: MediaStreamTrack) => this.peerConnection.addTrack(track, this.localStream));
 
     try {
       const offer: RTCSessionDescriptionInit = await this.peerConnection.createOffer(offerOptions);
@@ -59,14 +50,15 @@ export class ChatComponent implements AfterViewInit {
 
       this.inCall = true;
 
-      this.dataService.sendMessage({type: 'offer', data: offer});
-    } catch (err: any) {
-      this.handleGetUserMediaError(err);
+      this.dataService.sendMessage({ type: 'offer', data: offer });
+    } catch (e: unknown) {
+      const error = e as {name:string, message:string};
+      this.handleGetUserMediaError(error);
     }
   }
 
   hangUp(): void {
-    this.dataService.sendMessage({type: 'hangup', data: ''});
+    this.dataService.sendMessage({ type: 'hangup', data: '' });
     this.closeVideoCall();
   }
 
@@ -80,26 +72,26 @@ export class ChatComponent implements AfterViewInit {
 
     // this.transactions$.subscribe();
     this.dataService.messages$.subscribe(
-      msg => {
+      (msg: Message) => {
         // console.log('Received message: ' + msg.type);
         switch (msg.type) {
           case 'offer':
-            this.handleOfferMessage(msg.data);
+            this.handleOfferMessage(msg.data as RTCSessionDescriptionInit);
             break;
           case 'answer':
-            this.handleAnswerMessage(msg.data);
+            this.handleAnswerMessage(msg.data as RTCSessionDescriptionInit);
             break;
           case 'hangup':
             this.handleHangupMessage(msg);
             break;
           case 'ice-candidate':
-            this.handleICECandidateMessage(msg.data);
+            this.handleICECandidateMessage(msg.data as RTCIceCandidate);
             break;
           default:
             console.log('unknown message of type ' + msg.type);
         }
       },
-      error => console.log(error)
+      (error) => console.log(error),
     );
   }
 
@@ -115,35 +107,33 @@ export class ChatComponent implements AfterViewInit {
       this.startLocalVideo();
     }
 
-    this.peerConnection.setRemoteDescription(new RTCSessionDescription(msg))
+    this.peerConnection
+      .setRemoteDescription(new RTCSessionDescription(msg))
       .then(() => {
-
         // add media stream to local video
         this.localVideo.nativeElement.srcObject = this.localStream;
 
         // add media tracks to remote connection
-        this.localStream.getTracks().forEach(
-          track => this.peerConnection.addTrack(track, this.localStream)
-        );
+        this.localStream.getTracks().forEach((track) => this.peerConnection.addTrack(track, this.localStream));
+      })
+      .then(() => {
+        // Build SDP for answer message
+        return this.peerConnection.createAnswer();
+      })
+      .then((answer: RTCSessionDescriptionInit) => {
+        // Set local SDP
+        return this.peerConnection.setLocalDescription(answer);
+      })
+      .then(() => {
+        // Send local SDP to remote party
+        this.dataService.sendMessage({ type: 'answer', data: this.peerConnection.localDescription });
 
-      }).then(() => {
-
-      // Build SDP for answer message
-      return this.peerConnection.createAnswer();
-
-    }).then((answer) => {
-
-      // Set local SDP
-      return this.peerConnection.setLocalDescription(answer);
-
-    }).then(() => {
-
-      // Send local SDP to remote party
-      this.dataService.sendMessage({type: 'answer', data: this.peerConnection.localDescription});
-
-      this.inCall = true;
-
-    }).catch(this.handleGetUserMediaError);
+        this.inCall = true;
+      })
+      .catch((e: unknown) => {
+        const error = e as {name:string, message:string};
+        this.handleGetUserMediaError(error);
+      });
   }
 
   private handleAnswerMessage(msg: RTCSessionDescriptionInit): void {
@@ -163,19 +153,19 @@ export class ChatComponent implements AfterViewInit {
 
   private async requestMediaDevices(): Promise<void> {
     try {
-      // navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
       this.localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
       // pause all tracks
       this.pauseLocalVideo();
-    } catch (e: any) {
-      console.error(e);
-      alert(`getUserMedia() error: ${e.name}`);
+    } catch (e: unknown) {
+      const error = e as {name:string};
+      console.error(error);
+      alert(`getUserMedia() error: ${error.name}`);
     }
   }
 
   startLocalVideo(): void {
     console.log('starting local stream');
-    this.localStream.getTracks().forEach(track => {
+    this.localStream.getTracks().forEach((track: MediaStreamTrack) => {
       track.enabled = true;
     });
     this.localVideo.nativeElement.srcObject = this.localStream;
@@ -185,7 +175,7 @@ export class ChatComponent implements AfterViewInit {
 
   pauseLocalVideo(): void {
     console.log('pause local stream');
-    this.localStream.getTracks().forEach(track => {
+    this.localStream.getTracks().forEach((track: MediaStreamTrack) => {
       track.enabled = false;
     });
     this.localVideo.nativeElement.srcObject = undefined;
@@ -215,7 +205,7 @@ export class ChatComponent implements AfterViewInit {
       this.peerConnection.onsignalingstatechange = null;
 
       // Stop all transceivers on the connection
-      this.peerConnection.getTransceivers().forEach(transceiver => {
+      this.peerConnection.getTransceivers().forEach((transceiver: RTCRtpTransceiver) => {
         transceiver.stop();
       });
 
@@ -227,8 +217,8 @@ export class ChatComponent implements AfterViewInit {
   }
 
   /* ########################  ERROR HANDLER  ################################## */
-  private handleGetUserMediaError(e: Error): void {
-    switch (e.name) {
+  private handleGetUserMediaError = (error: {name:string, message:string}): void => {
+    switch (error.name) {
       case 'NotFoundError':
         alert('Unable to open your call because no camera and/or microphone were found.');
         break;
@@ -237,8 +227,8 @@ export class ChatComponent implements AfterViewInit {
         // Do nothing; this is the same as the user canceling the call.
         break;
       default:
-        console.log(e);
-        alert('Error opening your camera and/or microphone: ' + e.message);
+        console.log(error);
+        alert('Error opening your camera and/or microphone: ' + error.message);
         break;
     }
 
@@ -256,10 +246,10 @@ export class ChatComponent implements AfterViewInit {
     if (event.candidate) {
       this.dataService.sendMessage({
         type: 'ice-candidate',
-        data: event.candidate
+        data: event.candidate,
       });
     }
-  }
+  };
 
   private handleICEConnectionStateChangeEvent = (event: Event) => {
     console.log(event);
@@ -270,7 +260,7 @@ export class ChatComponent implements AfterViewInit {
         this.closeVideoCall();
         break;
     }
-  }
+  };
 
   private handleSignalingStateChangeEvent = (event: Event) => {
     console.log(event);
@@ -279,10 +269,10 @@ export class ChatComponent implements AfterViewInit {
         this.closeVideoCall();
         break;
     }
-  }
+  };
 
   private handleTrackEvent = (event: RTCTrackEvent) => {
     console.log(event);
     this.remoteVideo.nativeElement.srcObject = event.streams[0];
-  }
+  };
 }

@@ -6,8 +6,8 @@ export const environment = {
       {
         urls: 'turn:turnserver:3478',
         username: 'user',
-        credential: 'password'
-      }
-    ]
-  }
+        credential: 'password',
+      },
+    ],
+  },
 };
