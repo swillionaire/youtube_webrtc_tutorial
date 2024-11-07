@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "ci:install": "npm ci -ddd",
+    "start" : "node ./signalling_server.js"
+  },
   "dependencies": {
     "ws": "^8.18.0"
   }
