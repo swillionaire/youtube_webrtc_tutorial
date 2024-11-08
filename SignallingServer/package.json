@@ -1,9 +1,16 @@
 {
   "scripts": {
     "ci:install": "npm ci -ddd",
-    "start" : "node ./signalling_server.js"
+    "build": "npx tsc",
+    "start": "node ./dist/index.js",
+    "build+start": "npm run-script build; npm run-script start"
   },
   "dependencies": {
+    "rxjs": "^7.8.1",
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.13",
+    "typescript": "^5.6.3"
   }
 }
