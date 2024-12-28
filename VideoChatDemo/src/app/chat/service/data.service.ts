@@ -10,10 +10,8 @@ export const WS_ENDPOINT = environment.wsEndpoint;   // wsEndpoint: 'ws://localh
   providedIn: 'root'
 })
 export class DataService {
-
-  private socket$!: WebSocketSubject<any>;
-
-  private messagesSubject = new Subject<Message>();
+  private socket$!: WebSocketSubject<Message | null>;
+  private messagesSubject = new Subject<Message | null>();
   public messages$ = this.messagesSubject.asObservable();
 
   /**
@@ -21,29 +19,27 @@ export class DataService {
    * @param cfg if true the observable will be retried.
    */
   public connect(): void {
-
     if (!this.socket$ || this.socket$.closed) {
       this.socket$ = this.getNewWebSocket();
-
       this.socket$.subscribe(
         // Called whenever there is a message from the server
-        msg => {
-          console.log('Received message of type: ' + msg.type);
+        (msg: Message | null) => {
+          console.log('Received message of type: ' + msg?.type);
           this.messagesSubject.next(msg);
         }
       );
     }
   }
 
-  sendMessage(msg: Message): void {
-    console.log('sending message: ' + msg.type);
+  sendMessage(msg: Message | null): void {
+    console.log('sending message: ' + msg?.type);
     this.socket$.next(msg);
   }
 
   /**
    * Return a custom WebSocket subject which reconnects after failure
    */
-  private getNewWebSocket(): WebSocketSubject<any> {
+  private getNewWebSocket(): WebSocketSubject<Message | null> {
     return webSocket({
       url: WS_ENDPOINT,
       openObserver: {
